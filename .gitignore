@@ -1,0 +1,12 @@
+.idea/
+*.log
+*.tmp
+*.swp
+.DS_Store
+node_modules/
+dist/
+.env
+*.pyc
+__pycache__/
+# Optional: OS-specific
+Thumbs.db
