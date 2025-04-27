@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>PNG / JPG to SVG</title>
+    <script src="https://unpkg.com/imagetracerjs/imagetracer_v1.2.6.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 30px;
+            text-align: center;
+            background: #f3f6fa;
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            margin-bottom: 30px;
+            letter-spacing: 1px;
+        }
+
+        #dropzone {
+            border: 2.5px dashed #4a90e2;
+            padding: 40px;
+            margin-bottom: 35px;
+            cursor: pointer;
+            border-radius: 16px;
+            background: #fff;
+            color: #4a90e2;
+            font-size: 1.15rem;
+            box-shadow: 0 2px 10px rgba(74, 144, 226, 0.07);
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        #dropzone.hover {
+            background-color: #e9f2fc;
+            border-color: #357ab8;
+        }
+
+        .preview-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 32px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .img-box, .svg-box {
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #e1e1e1;
+            padding: 18px 18px 10px 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 220px;
+            width: 100%;
+        }
+
+        .img-box label, .svg-box label {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        #preview {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-bottom: 0;
+        }
+
+        .svg-box svg {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+        }
+
+        #download {
+            margin-top: 18px;
+            display: none;
+            background: #4a90e2;
+            color: #fff;
+            padding: 10px 26px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.11);
+            transition: background 0.2s;
+        }
+
+        #download:hover {
+            background: #357ab8;
+        }
+
+        canvas {
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .preview-container {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .img-box, .svg-box {
+                min-width: unset;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div style="max-width: 500px; margin: 0 auto;">
+    <h1>Convert PNG / JPG<br />to SVG</h1>
+    <div id="dropzone">Drag image here or click</div>
+    <input type="file" id="fileinput" accept="image/*" style="display:none;">
+    <div class="preview-container">
+        <div class="img-box">
+            <label>Preview</label>
+            <img id="preview" src="" alt="" style="display:none;">
+        </div>
+        <div class="svg-box">
+            <label>SVG Result</label>
+            <div id="svgoutput"></div>
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+    <a id="download" href="#" download="image2svg.svg">Download SVG</a>
+</div>
+
+<script>
+    const dropzone = document.getElementById('dropzone');
+    const fileinput = document.getElementById('fileinput');
+    const svgoutput = document.getElementById('svgoutput');
+    const preview = document.getElementById('preview');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const download = document.getElementById('download');
+
+    dropzone.addEventListener('click', () => fileinput.click());
+    dropzone.addEventListener('dragover', e => {
+        e.preventDefault();
+        dropzone.classList.add('hover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('hover'));
+    dropzone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropzone.classList.remove('hover');
+        const file = e.dataTransfer.files[0];
+        if (file) processImage(file);
+    });
+    fileinput.addEventListener('change', () => {
+        const file = fileinput.files[0];
+        if (file) processImage(file);
+    });
+
+    function processImage(file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const img = new Image();
+            img.onload = function () {
+                preview.src = img.src;
+                preview.style.display = 'block';
+
+                // Bild vor SVG-Umwandlung auf Canvas runterskalieren
+                const MAX_CANVAS_SIZE = 1000;
+                let scale = Math.min(MAX_CANVAS_SIZE / img.width, MAX_CANVAS_SIZE / img.height, 1);
+                let scaledWidth = Math.round(img.width * scale);
+                let scaledHeight = Math.round(img.height * scale);
+                canvas.width = scaledWidth;
+                canvas.height = scaledHeight;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
+
+                // ImageTracer erwartet eine Bild-URL, nicht das Canvas-Element selbst
+                ImageTracer.imageToSVG(canvas.toDataURL(), function (svgString) {
+                    // SVG-Größe berechnen (wiederhergestellt!)
+                    const MAX_SIZE = 200;
+                    let widthMatch = svgString.match(/width="([0-9.]+)"/);
+                    let heightMatch = svgString.match(/height="([0-9.]+)"/);
+                    let width = widthMatch ? widthMatch[1] : canvas.width;
+                    let height = heightMatch ? heightMatch[1] : canvas.height;
+                    let widthNum = parseFloat(width);
+                    let heightNum = parseFloat(height);
+                    let dispWidth = widthNum;
+                    let dispHeight = heightNum;
+                    if (widthNum > heightNum) {
+                        dispHeight = Math.round(heightNum * (MAX_SIZE / widthNum));
+                        dispWidth = MAX_SIZE;
+                    } else {
+                        dispWidth = Math.round(widthNum * (MAX_SIZE / heightNum));
+                        dispHeight = MAX_SIZE;
+                    }
+                    svgString = svgString.replace(/(width|height)="[^"]*"/g, '');
+                    // viewBox und width/height setzen
+                    svgString = svgString.replace(
+                        /<svg([^>]*)/i,
+                        `<svg$1 viewBox="0 0 ${width} ${height}" width="${dispWidth}" height="${dispHeight}"`
+                    );
+                    svgoutput.innerHTML = svgString;
+                    // Download-Link nur anzeigen, aber href NICHT mehr setzen
+                    download.style.display = 'inline-block';
+                }, {
+                    numberofcolors: 10,   // Weniger Farben
+                    strokewidth: 1,       // Keine Kontur
+                    blur: 2,              // Glättung
+                    ltres: 5,             // Linienvereinfachung
+                    qtres: 5,             // Kurvenvereinfachung
+                    roundcoords: 2,       // Gerundete Koordinaten
+                    scale: 1              // Keine Skalierung
+                    // pal: ['#000000','#ffffff'] // Eigene Palette optional
+                });
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // Download-Link: Blob erst beim Klick erzeugen
+    download.addEventListener('click', function (e) {
+        const svgElem = svgoutput.querySelector('svg');
+        if (!svgElem) {
+            e.preventDefault();
+            return;
+        }
+        // Sicherstellen, dass SVG Inhalt hat
+        const svgData = '\uFEFF' + svgElem.outerHTML;
+        const blob = new Blob([svgData], {type: 'image/svg+xml'});
+        const url = URL.createObjectURL(blob);
+        download.href = url;
+        // Blob-URL erst nach 5 Sekunden freigeben (nicht sofort!)
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    });
+</script>
+</body>
+</html>
